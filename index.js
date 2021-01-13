@@ -1,6 +1,8 @@
 const Excel = require('exceljs');
 const generator = require('randomstring');
 
+const fs = require('fs');
+
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvWriter = createCsvWriter({
   path: 'out.csv',
@@ -16,56 +18,44 @@ const filePath = path.resolve(__dirname,'qr-codes.xlsx');
 
 wb.xlsx.readFile(filePath).then(() => {
 
-    const sh1 = wb.getWorksheet("1 - 15000-rows BUD");
-    const sh2 = wb.getWorksheet("2 - 5000-rows BUD");
-    const sh3 = wb.getWorksheet("3 - 10000-rows BUD");
-    const sh4 = wb.getWorksheet("4 - 51-rows Stella");
-    const sh5 = wb.getWorksheet("5 - 10000-rows Brahma DM");
-
-    const allCodes = [];
-
-    const newCodes = [];
-
-    for (i = 1; i < sh1.rowCount; i++) {
-        allCodes.push(sh1.getRow(i).getCell(2).value);
-    }
-
-    for (i = 1; i < sh2.rowCount; i++) {
-        allCodes.push(sh2.getRow(i).getCell(2).value);
-    }
-
-    for (i = 1; i < sh3.rowCount; i++) {
-        allCodes.push(sh3.getRow(i).getCell(2).value);
-    }
-
-    for (i = 1; i < sh4.rowCount; i++) {
-        allCodes.push(sh4.getRow(i).getCell(2).value);
-    }
-
-    console.log('allCodes', allCodes.length);
-
-
-    while (newCodes.length !== 10000) {
-        const code = generator.generate(7);
-
-        if (!allCodes[code.toLocaleLowerCase()]) {
-            console.log(code);
-            newCodes.push(code.toLocaleLowerCase());
-            console.log('New codes: ', newCodes.length);
-        }
-    }
-
-    csvWriter.writeRecords(newCodes.map(code => ({url: `https://orig.app/${code}`, code: code}))).then(()=> console.log('The CSV file was written successfully'));
-
-
-    // sh1.getRow(1).getCell(2).value = 32;
-    // wb.xlsx.writeFile("sample2.xlsx");
-    // console.log("Row-3 | Cell-2 - "+sh1.getRow(3).getCell(2).value);
-    
-    // console.log(sh1.rowCount);
-    // //Get all the rows data [1st and 2nd column]
-    // for (i = 1; i <= sh1.rowCount; i++) {
-    //     console.log(sh1.getRow(i).getCell(1).value);
-    //     console.log(sh1.getRow(i).getCell(2).value);
-    // }
+    appendToFile(wb.getWorksheet("1 - 15000-rows BUD"), 2);
+    appendToFile(wb.getWorksheet("2 - 5000-rows BUD"), 2);
+    appendToFile(wb.getWorksheet("3 - 10000-rows BUD"), 2);
+    appendToFile(wb.getWorksheet("4 - 51-rows Stella"), 3);
+    appendToFile(wb.getWorksheet("5 - 10000-rows Brahma DM"), 1);
 });
+
+const appendToFile = (sheet, campaignType) => {
+
+    const codes = [];
+
+    for (i = 2; i <= sheet.rowCount; i++) {
+        const code = sheet.getRow(i).getCell(2).value;
+        codes.push(code);
+        // fs.appendFileSync('products.sql', `INSERT INTO product (code, event_campaign_type) VALUES ('${code}', ${campaignType});\n`);
+    }
+
+    const chunked = chunk(codes, 100);
+
+
+    chunked.forEach(x => {
+        fs.appendFileSync('products.sql', `INSERT INTO product (code, event_campaign_type) VALUES \n`);
+
+
+        for (i = 0; i < x.length; i++) {
+            const sign = i + 1 == x.length ? ';' : ',';
+            fs.appendFileSync('products.sql', `\t('${x[i]}', ${campaignType})${sign}\n`);
+        }
+
+    });
+
+
+}
+
+const chunk = (input, size) => {
+    return input.reduce((arr, item, idx) => {
+      return idx % size === 0
+        ? [...arr, [item]]
+        : [...arr.slice(0, -1), [...arr.slice(-1)[0], item]];
+    }, []);
+  };
